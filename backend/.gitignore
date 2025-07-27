@@ -1,0 +1,9 @@
+# Python data
+.venv
+__pycache__
+
+# Testing Data
+jobs
+
+# Environment data
+.env
