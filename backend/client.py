@@ -1,6 +1,6 @@
 import datetime
 from typing import List
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 import asyncio
 from client_loop import async_client_loop, get_top_pros_data, get_top_cons_data  # assumes client_loop.py is in the same directory
@@ -146,3 +146,126 @@ async def get_all_routers():
         return JSONResponse(status_code=404, content={"error": "routers.json file not found"})
     except json.JSONDecodeError:
         return JSONResponse(status_code=400, content={"error": "Invalid JSON format in routers.json"})
+
+RESUME_PATH = "test_data/resume/resume-ansh.json"
+
+# Shared base models
+class Experience(BaseModel):
+    company: str
+    location: str = ""
+    role: str
+    date: str
+    description: str
+
+class Project(BaseModel):
+    title: str
+    description: str
+
+# Resume loading/saving helpers
+def load_resume():
+    print("Opening resume", RESUME_PATH)
+    try:
+        print(os.path.exists(RESUME_PATH))
+        with open(RESUME_PATH, "r") as f:
+            d = json.load(f)
+            print("GOT", d)
+            return d
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load resume: {str(e)}")
+
+def save_resume(resume_data):
+    try:
+        with open(RESUME_PATH, "w") as f:
+            json.dump(resume_data, f, indent=2)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save resume: {str(e)}")
+
+
+# ------------------- EXPERIENCE ROUTES -------------------
+
+@app.post("/resume/experience")
+async def add_experience(exp: Experience):
+    resume = load_resume()
+    resume.setdefault("experiences", []).append(exp.dict())
+    save_resume(resume)
+    return {"message": "Experience added successfully"}
+
+@app.put("/resume/experience/{index}")
+async def update_experience(index: int, exp: Experience):
+    resume = load_resume()
+    try:
+        resume["experiences"][index] = exp.dict()
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Experience index out of range")
+    save_resume(resume)
+    return {"message": "Experience updated successfully"}
+
+@app.delete("/resume/experience/{index}")
+async def delete_experience(index: int):
+    resume = load_resume()
+    try:
+        del resume["experiences"][index]
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Experience index out of range")
+    save_resume(resume)
+    return {"message": "Experience deleted successfully"}
+
+@app.get("/resume/experience", response_model=List[Experience])
+async def get_all_experiences():
+    resume = load_resume()
+    return resume.get("experiences", [])
+
+@app.get("/resume/experience/{index}", response_model=Experience)
+async def get_experience(index: int):
+    resume = load_resume()
+    experiences = resume.get("experiences", [])
+    try:
+        return experiences[index]
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Experience index out of range")
+
+
+
+# ------------------- PROJECT ROUTES -------------------
+
+@app.post("/resume/project")
+async def add_project(project: Project):
+    resume = load_resume()
+    resume.setdefault("projects", []).append(project.dict())
+    save_resume(resume)
+    return {"message": "Project added successfully"}
+
+@app.put("/resume/project/{index}")
+async def update_project(index: int, project: Project):
+    resume = load_resume()
+    try:
+        resume["projects"][index] = project.dict()
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Project index out of range")
+    save_resume(resume)
+    return {"message": "Project updated successfully"}
+
+@app.delete("/resume/project/{index}")
+async def delete_project(index: int):
+    resume = load_resume()
+    try:
+        del resume["projects"][index]
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Project index out of range")
+    save_resume(resume)
+    return {"message": "Project deleted successfully"}
+
+@app.get("/resume/project", response_model=List[Project])
+async def get_all_projects():
+    resume = load_resume()
+    print("LOADED RESUME", resume)
+    return resume.get("projects", [])
+
+@app.get("/resume/project/{index}", response_model=Project)
+async def get_project(index: int):
+    resume = load_resume()
+    projects = resume.get("projects", [])
+    try:
+        return projects[index]
+    except IndexError:
+        raise HTTPException(status_code=404, detail="Project index out of range")

@@ -15,6 +15,9 @@ import {
   LogOut,
   Router,
   Search,
+  PlusCircle,
+  FileText,
+  GitBranch,
 } from "lucide-react"
 
 import {
@@ -45,6 +48,21 @@ const navigationItems = [
     title: "Dashboard",
     url: "/",
     icon: Home,
+  },
+  {
+    title: "Create",
+    url: "/create",
+    icon: PlusCircle,
+  },
+  {
+    title: "Manage",
+    url: "/manage",
+    icon: FileText,
+  },
+  {
+    title: "Timeline",
+    url: "/timeline",
+    icon: GitBranch,
   },
   {
     title: "Routers",

@@ -1,9 +1,10 @@
-# jobs_api.py
+# server.py
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, List, Union
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from job_utils import get_job_data, job_exists
+from job_utils import get_job_data, job_exists, create_job, delete_job, update_job
 from agents import Agent, Runner, trace
 from dotenv import load_dotenv
 import json
@@ -250,3 +251,62 @@ async def get_top_skills(n_top: int = 5):
     # pick the top n_top skills
     top_skills = [skill for skill, _ in counter.most_common(n_top)]
     return top_skills
+
+class JobCreateRequest(BaseModel):
+    description: str
+    questions: dict
+
+@app.post("/jobs/create")
+async def create_new_job(payload: JobCreateRequest):
+    """
+    Create a new job by saving its description and questions to disk.
+    """
+    try:
+        job_id = create_job(payload.description, payload.questions)
+        return {"status": "success", "job_id": job_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create job: {str(e)}")
+
+@app.delete("/jobs/{job_id}")
+async def remove_job(job_id: str):
+    """
+    Delete a job and its associated files.
+    """
+    success = delete_job(job_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"status": "success", "job_id": job_id}
+
+class JobUpdateRequest(BaseModel):
+    description: Union[str, None] = None
+    questions: Union[dict, None] = None
+
+@app.put("/jobs/{job_id}")
+async def update_existing_job(job_id: str, payload: JobUpdateRequest):
+    """
+    Update a job's description and/or questions.
+    """
+    if not payload.description and not payload.questions:
+        raise HTTPException(status_code=400, detail="No update fields provided")
+
+    updated = update_job(job_id, new_description=payload.description, new_questions=payload.questions)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Job not found or update failed")
+
+    return {"status": "success", "job_id": job_id}
+
+ROUTERS_CONFIG_PATH = "routers_server.json"  # change this if needed
+
+@app.get("/routers", response_model=List[str])
+async def get_all_routers():
+    try:
+        with open(ROUTERS_CONFIG_PATH, "r") as f:
+            config = json.load(f)
+            routers = config.get("routers", [])
+            if not isinstance(routers, list):
+                return JSONResponse(status_code=500, content={"error": "'routers' should be a list"})
+            return routers
+    except FileNotFoundError:
+        return JSONResponse(status_code=404, content={"error": "routers.json file not found"})
+    except json.JSONDecodeError:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON format in routers.json"})
